@@ -14,9 +14,9 @@ pragma solidity ^0.8.24;
 
 /// @notice You may need to change these import statements depending on your project structure and where you use this test
 import {Test, console, stdStorage, StdStorage} from "forge-std/Test.sol";
-import {HumanResources, IHumanResources} from "../src/HumanResources.sol";
-import {IERC20} from "../lib/forge-std/src/interfaces/IERC20.sol";
-import {IChainlinkFeed} from "../lib/forge-std/src/interfaces/IChainlinkFeed.sol";
+import {HumanResources, IHumanResources} from "src/HumanResources.sol";
+import {IERC20} from "lib/forge-std/src/interfaces/IERC20.sol";
+import {AggregatorV3Interface} from "lib/chainlink/interfaces/AggregatorV3Interface.sol";
 
 contract HumanResourcesTest is Test {
     using stdStorage for StdStorage;
@@ -25,8 +25,8 @@ contract HumanResourcesTest is Test {
         0x4200000000000000000000000000000000000006;
     address internal constant _USDC =
         0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
-    IChainlinkFeed internal constant _ETH_USD_FEED =
-        IChainlinkFeed(0x13e3Ee699D1909E989722E753853AE30b17e08c5);
+    AggregatorV3Interface internal constant _ETH_USD_FEED =
+        AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5);
 
     HumanResources public humanResources;
 
@@ -41,7 +41,10 @@ contract HumanResourcesTest is Test {
     uint256 ethPrice;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("ETH_RPC_URL"));
+        // vm.createSelectFork(vm.envString("ETH_RPC_URL"));
+        uint256 optimismFork = vm.createFork("optimisim");
+        vm.selectFork(optimismFork);
+
         humanResources = HumanResources(payable(vm.envAddress("HR_CONTRACT")));
         (, int256 answer, , , ) = _ETH_USD_FEED.latestRoundData();
         uint256 feedDecimals = _ETH_USD_FEED.decimals();
