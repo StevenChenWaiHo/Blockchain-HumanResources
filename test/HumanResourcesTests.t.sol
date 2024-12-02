@@ -41,17 +41,167 @@ contract HumanResourcesTest is Test {
     uint256 ethPrice;
 
     function setUp() public {
-        // vm.createSelectFork(vm.envString("ETH_RPC_URL"));
-        uint256 optimismFork = vm.createFork("optimisim");
-        vm.selectFork(optimismFork);
-
-        humanResources = HumanResources(payable(vm.envAddress("HR_CONTRACT")));
+        vm.createSelectFork(vm.envString("ETH_RPC_URL"));
+        // humanResources = HumanResources(payable(vm.envAddress("HR_CONTRACT")));
+        humanResources = new HumanResources();
         (, int256 answer, , , ) = _ETH_USD_FEED.latestRoundData();
         uint256 feedDecimals = _ETH_USD_FEED.decimals();
         ethPrice = uint256(answer) * 10 ** (18 - feedDecimals);
         hrManager = humanResources.hrManager();
     }
 
+
+    // Withdraw Edge Cases
+    function test_withdrawTerminatedEmployee() public {
+        _mintTokensFor(_USDC, address(humanResources), 10_000e6);
+        _registerEmployee(alice, aliceSalary);
+        skip(2 days);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        skip(1 days);
+        vm.prank(alice);
+        humanResources.withdrawSalary();
+        uint256 expectedSalary = ((aliceSalary * 2) / 7);
+        assertEq(
+            IERC20(_USDC).balanceOf(address(alice)),
+            expectedSalary / 1e12
+        );
+    }
+
+    function test_withdrawHalfday() public {
+        _mintTokensFor(_USDC, address(humanResources), 10_000e6);
+        _registerEmployee(alice, aliceSalary);
+        skip(0.5 days);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        vm.prank(alice);
+        humanResources.withdrawSalary();
+        uint256 expectedSalary = ((aliceSalary) / 2 / 7);
+        assertEq(
+            IERC20(_USDC).balanceOf(address(alice)),
+            expectedSalary / 1e12
+        );
+    }
+
+    function test_withdrawOnceBeforeTerminatedAndReregister() public {
+        _mintTokensFor(_USDC, address(humanResources), 10_000e6);
+        _registerEmployee(alice, aliceSalary);
+        skip(1 days);
+        // Withdraw after one day
+        vm.prank(alice);
+        uint256 expectedSalary = ((aliceSalary) / 7);
+        humanResources.withdrawSalary();
+        assertEq(
+            IERC20(_USDC).balanceOf(address(alice)),
+            expectedSalary / 1e12
+        );
+        // Accumulate one day before termination
+        skip(1 days);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        skip(1 days);
+        _registerEmployee(alice, aliceSalary);
+        skip(1 days);
+        // Accumulate one day after termination
+        // Salary should accumulate 2 days
+        vm.prank(alice);
+        humanResources.withdrawSalary();
+        expectedSalary = ((aliceSalary * 3) / 7);
+        console.log("Expected: ", expectedSalary);
+        assertEq(
+            IERC20(_USDC).balanceOf(address(alice)),
+            expectedSalary / 1e12
+        );
+    }
+
+    // Active Employee Count
+    function test_countAfterTerminated() public {
+        _mintTokensFor(_USDC, address(humanResources), 10_000e6);
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        uint256 count = humanResources.activeEmployeeCount();
+        assertEq(
+            count,
+            0
+        );
+    }
+
+    function test_countAfterReregistered() public {
+        _mintTokensFor(_USDC, address(humanResources), 10_000e6);
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        _registerEmployee(alice, aliceSalary);
+        uint256 count = humanResources.activeEmployeeCount();
+        assertEq(
+            count,
+            1
+        );
+    }
+
+    // =====Auth Test=====
+    // Register
+    function test_registerByActiveEmployee() public {
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(alice);
+        vm.expectRevert(IHumanResources.NotAuthorized.selector);
+        humanResources.registerEmployee(alice, aliceSalary);
+    }
+
+    function test_registerByTerminatedEmployee() public {
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        vm.prank(alice);
+        vm.expectRevert(IHumanResources.NotAuthorized.selector);
+        humanResources.registerEmployee(alice, aliceSalary);
+    }
+
+    // Terminate
+    function test_terminateByActiveEmployee() public {
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(alice);
+        vm.expectRevert(IHumanResources.NotAuthorized.selector);
+        humanResources.terminateEmployee(alice);
+    }
+
+    function test_terminateByTerminatedEmployee() public {
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        vm.prank(alice);
+        vm.expectRevert(IHumanResources.NotAuthorized.selector);
+        humanResources.terminateEmployee(alice);
+    }
+
+    // Withdraw
+    function test_withdrawByHR() public {
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(hrManager);
+        vm.expectRevert(IHumanResources.NotAuthorized.selector);
+        humanResources.withdrawSalary();
+    }
+
+    // Switch Currency
+    function test_switchByHR() public {
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(hrManager);
+        vm.expectRevert(IHumanResources.NotAuthorized.selector);
+        humanResources.switchCurrency();
+    }
+
+    function test_switchByTerminatedEmployee() public {
+        _registerEmployee(alice, aliceSalary);
+        vm.prank(hrManager);
+        humanResources.terminateEmployee(alice);
+        vm.prank(alice);
+        vm.expectRevert(IHumanResources.NotAuthorized.selector);
+        humanResources.switchCurrency();
+    }
+
+
+    // =====Sample Tests====
     function test_registerEmployee() public {
         _registerEmployee(alice, aliceSalary);
         assertEq(humanResources.getActiveEmployeeCount(), 1);
@@ -101,6 +251,7 @@ contract HumanResourcesTest is Test {
     function test_salaryAvailable_eth() public {
         _registerEmployee(alice, aliceSalary);
         uint256 expectedSalary = (aliceSalary * 1e18 * 2) / ethPrice / 7;
+        console.log("expected: ", expectedSalary);
         vm.prank(alice);
         humanResources.switchCurrency();
         skip(2 days);
