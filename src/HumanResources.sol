@@ -9,14 +9,12 @@ import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
 import "forge-std/console.sol";
 
 contract HumanResources is IHumanResources {
-
     address internal constant _USDC = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
     address internal constant _WETH = 0x4200000000000000000000000000000000000006;
     address internal constant _Oracle = 0x13e3Ee699D1909E989722E753853AE30b17e08c5;
     AggregatorV3Interface internal constant _ETH_USD_FEED = AggregatorV3Interface(_Oracle);
     address internal constant _Uniswap = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
     ISwapRouter internal swapRouter = ISwapRouter(_Uniswap);
-    
 
     uint256 private acceptableSlippage = 2; // in percentage
 
@@ -60,7 +58,7 @@ contract HumanResources is IHumanResources {
     // 2. Registering and Managing Employees
     function registerEmployee(address employee, uint256 weeklyUsdSalary) external override onlyHRManager {
         Employee storage emp = employees[employee];
-        if (employees[employee].active){
+        if (employees[employee].active) {
             revert EmployeeAlreadyRegistered();
         }
 
@@ -86,7 +84,7 @@ contract HumanResources is IHumanResources {
         uint256 ethPrice = getEthPrice();
         console.log("ETH Price", ethPrice);
         uint256 ethAmount = salary * 1e18 / ethPrice;
-        console.log("ETH Amount", ethAmount);   
+        console.log("ETH Amount", ethAmount);
         return ethAmount;
     }
 
@@ -100,7 +98,7 @@ contract HumanResources is IHumanResources {
             uint256 elapsedTime = block.timestamp - employee.lastWithdrawal;
             amount = (elapsedTime * employee.weeklyUsdSalary / (7 days));
         }
-        console.log("accumulated salary: ", amount);    
+        console.log("accumulated salary: ", amount);
         console.log("pending salary: ", employee.pendingSalary);
 
         amount += employee.pendingSalary;
@@ -110,7 +108,7 @@ contract HumanResources is IHumanResources {
 
     function terminateEmployee(address employee) external override onlyHRManager {
         Employee storage emp = employees[employee];
-        if (emp.employedSince == 0 || !emp.active){
+        if (emp.employedSince == 0 || !emp.active) {
             revert EmployeeNotRegistered();
         }
 
@@ -124,14 +122,13 @@ contract HumanResources is IHumanResources {
     }
 
     function getEthPrice() internal view returns (uint256) {
-        (, int256 answer, , , ) = _ETH_USD_FEED.latestRoundData();
+        (, int256 answer,,,) = _ETH_USD_FEED.latestRoundData();
         uint256 feedDecimals = _ETH_USD_FEED.decimals();
         uint256 ethPrice = uint256(answer) * 10 ** (18 - feedDecimals); // price in 18 decimals
         return ethPrice;
     }
 
     function swapUSDCToETH(uint256 salary) internal returns (uint256) {
-
         uint256 ethAmount = convertSalaryToETH(salary);
 
         // Use Uniswap to perform the swap
@@ -153,7 +150,7 @@ contract HumanResources is IHumanResources {
     function withdrawSalaryHelper(address addr) private {
         Employee storage emp = employees[addr];
         uint256 amount = calculateSalary(emp);
-        
+
         uint256 usdcAmount = convertSalaryToUSDC(amount);
         require(usdc.balanceOf(address(this)) >= usdcAmount, "Insufficient balance");
 
@@ -163,7 +160,7 @@ contract HumanResources is IHumanResources {
         if (emp.isEth) {
             uint256 ethAmount = swapUSDCToETH(amount);
             weth.withdraw(ethAmount);
-            (bool sent, ) = addr.call{value: ethAmount}("");
+            (bool sent,) = addr.call{value: ethAmount}("");
             require(sent, "Failed to send Ether");
             emit SalaryWithdrawn(addr, true, ethAmount);
         } else {
@@ -177,12 +174,7 @@ contract HumanResources is IHumanResources {
         withdrawSalaryHelper(msg.sender);
     }
 
-    function getActiveEmployeeCount()
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function getActiveEmployeeCount() external view override returns (uint256) {
         return activeEmployeeCount;
     }
 
@@ -197,7 +189,7 @@ contract HumanResources is IHumanResources {
     function salaryAvailable(address employee) external view override returns (uint256) {
         Employee memory emp = employees[employee];
         uint256 amount = calculateSalary(emp);
-        if (emp.isEth){
+        if (emp.isEth) {
             amount = convertSalaryToETH(amount);
         } else {
             amount = convertSalaryToUSDC(amount);
@@ -209,11 +201,7 @@ contract HumanResources is IHumanResources {
         external
         view
         override
-        returns (
-            uint256 weeklySalary,
-            uint256 employedSince,
-            uint256 terminatedAt
-        )
+        returns (uint256 weeklySalary, uint256 employedSince, uint256 terminatedAt)
     {
         Employee memory emp = employees[employee];
         return (emp.weeklyUsdSalary, emp.employedSince, emp.terminatedAt);
