@@ -298,6 +298,7 @@ contract HumanResourcesTest is Test {
         assertApproxEqRel(alice.balance, expectedSalary, 0.01e18);
         skip(5 days);
         expectedSalary = (aliceSalary * 1e18) / ethPrice;
+        console.log("Expected: ", expectedSalary);
         vm.prank(alice);
         humanResources.withdrawSalary();
         assertApproxEqRel(alice.balance, expectedSalary, 0.01e18);

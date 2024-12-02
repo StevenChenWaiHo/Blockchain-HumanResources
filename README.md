@@ -12,7 +12,7 @@ struct Employee {
 ```
 
 # Implementation
-1. All salary is stored in 18 decimals format, it is converted to USDC and ETH with convertSalaryToUSDC() and swapUSDCToETH()
+1. All salary is stored and calculated in 18 decimals format, it is then converted to USDC and ETH with convertSalaryToUSDC() and swapUSDCToETH()
 
 # Functions
 ## Authentication (Modifiers)
@@ -50,7 +50,7 @@ Access: Only Employee (Active and Inactive)
 Access: Only Active Employee
 
 1. Withdraw salary with withdrawSalaryHelper()
-2. Invert isEth in Employee
+2. Invert isEth flag in Employee
 
 ## Views and Employee Information
 ### salaryAvailable()
@@ -73,19 +73,52 @@ Salary is stored in 18 decimals format, these functions convert the stored salar
 Convert salary to USDC by dividing 1e12
 
 ### convertSalaryToETH(uint256 salary)
-Convert salary to ETH by checking the current ETH/USD price on an oracle with getEthPrice()
+Convert salary to ETH
+1. Get the latest ETH/USD price in an oracle
+2. Get the number of decimal places the price from the oracle has
+3. Divide salary in USDC (18 decimals) by ethPrice (18 decimals) and scale the value to 18 decimals format
 
 ## Salary Calculations
 
 ### calculateSalary(Employee memory employee)
+It returns the salary amount available to withdraw of an employee in 18 decimals
+
+1. Check if employee is registered. Revert with EmployeeNotRegistered() if not.
+2. If the employee is active, calculate the accumulated salary by getting the time elapsed since the last withdrawal and multiply it by its salary rate.
+3. Finally add the pending salary, which an employee hasn't collected after a termination.
 
 ## Swapping Currency
 
 ### getEthPrice()
+Get the ETH/USDC price from an oracle and scale the value to 18 decimals format.
 
 ### swapUSDCToETH(uint256 salary)
+Swap USDC to ETH for the contract account
 
+1. Calculate the amount ETH we should get after swapping the salary (in USDC) by checking the price and converting to ETH with convertSalaryToETH().
+2. Approves Uniswap router to spend the USDC amount for the swap
+3. Input the parameters for the swap routers
+```
+{
+    tokenIn: _USDC, // Swap USDC
+    tokenOut: _WETH, // to WETH
+    fee: 500, // 0.05% for low-volatility pairs
+    recipient: address(this), // WETH to this account
+    deadline: block.timestamp + 5 minutes, // Low duration to protect against large market movement
+    amountIn: convertSalaryToUSDC(salary), // The amount of USDC to swap
+    amountOutMinimum: ethAmount * (100 - acceptableSlippage) / 100, // Minimum should be 2% less of expected amount
+    sqrtPriceLimitX96: 0 // Rely amountOutMinimum to handle slippage
+}
+```
+
+4. Get the amount of ETH received from the swap
 
 ## Withdrawal 
 ### withdrawSalaryHelper(address addr)
+Withdraw all salaries available for this employee with their preferred currency.
+
+1. Calculate the salary available for this employee
+2. Check the HR contract have enough USDC balance to withdraw
+3. Reset pending salary and set last withdrawal timestamp of the employee
+4. Transfer salary to the employee address with respect to their desired currency (swap USDC to ETH with swapUSDCToETH() for ETH).
 

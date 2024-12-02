@@ -92,7 +92,7 @@ contract HumanResources is IHumanResources {
 
     // Calculate Salary in 18 decimals
     function calculateSalary(Employee memory employee) private view returns (uint256 salary) {
-        if (employee.employedSince == 0) return 0;
+        if (employee.employedSince == 0) revert EmployeeNotRegistered();
 
         uint256 amount = 0;
 
@@ -137,28 +137,28 @@ contract HumanResources is IHumanResources {
         // Use Uniswap to perform the swap
         usdc.approve(_Uniswap, convertSalaryToUSDC(salary));
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: _USDC,
-            tokenOut: _WETH,
-            fee: 500,
-            recipient: address(this),
-            deadline: block.timestamp + 5 minutes,
-            amountIn: convertSalaryToUSDC(salary),
-            amountOutMinimum: ethAmount * (100 - acceptableSlippage) / 100,
-            sqrtPriceLimitX96: 0
+            tokenIn: _USDC, // Swap USDC
+            tokenOut: _WETH, // to WETH
+            fee: 500, // 0.05% for low-volatility pairs
+            recipient: address(this), // WETH to this account
+            deadline: block.timestamp + 5 minutes, // Low duration to protect against large market movement
+            amountIn: convertSalaryToUSDC(salary), // The amount of USDC to swap
+            amountOutMinimum: ethAmount * (100 - acceptableSlippage) / 100, // Minimum should be 2% less of expected amount
+            sqrtPriceLimitX96: 0 // Rely amountOutMinimum to handle slippage
         });
 
         return swapRouter.exactInputSingle(params);
     }
 
     function withdrawSalaryHelper(address addr) private {
-        Employee memory emp = employees[addr];
+        Employee storage emp = employees[addr];
         uint256 amount = calculateSalary(emp);
         
         uint256 usdcAmount = convertSalaryToUSDC(amount);
         require(usdc.balanceOf(address(this)) >= usdcAmount, "Insufficient balance");
 
-        employees[addr].lastWithdrawal = block.timestamp;
-        employees[addr].pendingSalary = 0;
+        emp.lastWithdrawal = block.timestamp;
+        emp.pendingSalary = 0;
 
         if (emp.isEth) {
             uint256 ethAmount = swapUSDCToETH(amount);
