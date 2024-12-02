@@ -30,12 +30,12 @@ contract HumanResources is IHumanResources {
 
     struct Employee {
         uint256 weeklyUsdSalary; // Scaled with 18 decimals
-        uint256 employedSince;
-        uint256 terminatedAt;
-        uint256 pendingSalary;
-        uint256 lastWithdrawal;
-        bool active;
-        bool isEth;
+        uint256 employedSince; // Latest register timestamp
+        uint256 terminatedAt; // Latest terminate timestamp
+        uint256 pendingSalary; // Non withdrawn salary accumulated until termination
+        uint256 lastWithdrawal; // Latest withdraw timestamp
+        bool active; // Employee active status
+        bool isEth; // Employee prefer withdrawing ETH
     }
 
     constructor() {
@@ -71,6 +71,7 @@ contract HumanResources is IHumanResources {
         emp.weeklyUsdSalary = weeklyUsdSalary;
         emp.employedSince = block.timestamp;
         emp.lastWithdrawal = block.timestamp;
+        emp.terminatedAt = 0;
         emp.active = true;
 
         emit EmployeeRegistered(employee, weeklyUsdSalary);
